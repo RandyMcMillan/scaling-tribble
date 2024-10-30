@@ -20,6 +20,18 @@ static NEXT_USER_ID: AtomicUsize = AtomicUsize::new(1);
 /// - Value is a sender of `warp::ws::Message`
 type Users = Arc<RwLock<HashMap<usize, mpsc::UnboundedSender<Message>>>>;
 
+use std::path::PathBuf;
+
+use tao::{
+  event::{Event, WindowEvent},
+  event_loop::{ControlFlow, EventLoop},
+  window::WindowBuilder,
+};
+use wry::{
+  http::{header::CONTENT_TYPE, Request, Response},
+  WebViewBuilder,
+};
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
@@ -173,3 +185,38 @@ static INDEX_HTML: &str = r#"<!DOCTYPE html>
     </body>
 </html>
 "#;
+
+fn get_wry_response(
+  request: Request<Vec<u8>>,
+) -> Result<http::Response<Vec<u8>>, Box<dyn std::error::Error>> {
+  let path = request.uri().path();
+  // Read the file content from file path
+  let root = PathBuf::from("examples/custom_protocol");
+  let path = if path == "/" {
+    "index.html"
+  } else {
+    //  removing leading slash
+    &path[1..]
+  };
+  let content = std::fs::read(std::fs::canonicalize(root.join(path))?)?;
+
+  // Return asset contents and mime types based on file extentions
+  // If you don't want to do this manually, there are some crates for you.
+  // Such as `infer` and `mime_guess`.
+  let mimetype = if path.ends_with(".html") || path == "/" {
+    "text/html"
+  } else if path.ends_with(".js") {
+    "text/javascript"
+  } else if path.ends_with(".png") {
+    "image/png"
+  } else if path.ends_with(".wasm") {
+    "application/wasm"
+  } else {
+    unimplemented!();
+  };
+
+  Response::builder()
+    .header(CONTENT_TYPE, mimetype)
+    .body(content)
+    .map_err(Into::into)
+}
