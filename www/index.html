@@ -1,0 +1,66 @@
+<!-- Copyright 2020-2023 Tauri Programme within The Commons Conservancy
+     SPDX-License-Identifier: Apache-2.0
+     SPDX-License-Identifier: MIT -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+
+  <body>
+    <h1>Welcome to WRY!</h1>
+    <p>Page 1</p>
+    <textarea></textarea>
+    <p id="keypresses"></p>
+    <a href="/subpage.html">Link</a>
+    <script type="text/javascript" src="/script.js"></script>
+    <script type="text/javascript">
+      document.body.addEventListener("keydown", (event) => {
+        document.querySelector("#keypresses").innerHTML += " " + event.key;
+      });
+    </script>
+
+        <h1>Warp chat</h1>
+        <div id="chat">
+            <p><em>Connecting...</em></p>
+        </div>
+        <input type="text" id="text" />
+        <button type="button" id="send">Send</button>
+        <script type="text/javascript">
+        const chat = document.getElementById('chat');
+        const text = document.getElementById('text');
+        const uri = 'ws://' + location.host + '/chat';
+        const ws = new WebSocket(uri);
+
+        function message(data) {
+            const line = document.createElement('p');
+            line.innerText = data;
+            chat.appendChild(line);
+        }
+
+        ws.onopen = function() {
+            chat.innerHTML = '<p><em>Connected!</em></p>';
+        };
+
+        ws.onmessage = function(msg) {
+            message(msg.data);
+        };
+
+        ws.onclose = function() {
+            chat.getElementsByTagName('em')[0].innerText = 'Disconnected!';
+        };
+
+        send.onclick = function() {
+            const msg = text.value;
+            ws.send(msg);
+            text.value = '';
+
+            message('<You>: ' + msg);
+        };
+        </script>
+
+  </body>
+</html>

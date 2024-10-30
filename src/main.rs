@@ -23,13 +23,13 @@ type Users = Arc<RwLock<HashMap<usize, mpsc::UnboundedSender<Message>>>>;
 use std::path::PathBuf;
 
 use tao::{
-  event::{Event, WindowEvent},
-  event_loop::{ControlFlow, EventLoop},
-  window::WindowBuilder,
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
 };
 use wry::{
-  http::{header::CONTENT_TYPE, Request, Response},
-  WebViewBuilder,
+    http::{header::CONTENT_TYPE, Request, Response},
+    WebViewBuilder,
 };
 
 #[tokio::main]
@@ -38,8 +38,6 @@ async fn main() -> wry::Result<()> {
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-
-
 
     // Keep track of all connected users, key is usize, value
     // is a websocket sender.
@@ -62,58 +60,59 @@ async fn main() -> wry::Result<()> {
 
     let routes = index.or(chat);
 
+    let builder = WebViewBuilder::new()
+        .with_asynchronous_custom_protocol(
+            "gnostr".into(),
+            move |_webview_id, request, responder| match get_wry_response(request) {
+                Ok(http_response) => responder.respond(http_response),
+                Err(e) => responder.respond(
+                    http::Response::builder()
+                        .header(CONTENT_TYPE, "text/plain")
+                        .status(500)
+                        .body(e.to_string().as_bytes().to_vec())
+                        .unwrap(),
+                ),
+            },
+        )
+        // tell the webview to load the custom protocol
+        .with_url("http://localhost:3030");
 
-  let builder = WebViewBuilder::new()
-    .with_asynchronous_custom_protocol("gnostr".into(), move |_webview_id, request, responder| {
-      match get_wry_response(request) {
-        Ok(http_response) => responder.respond(http_response),
-        Err(e) => responder.respond(
-          http::Response::builder()
-            .header(CONTENT_TYPE, "text/plain")
-            .status(500)
-            .body(e.to_string().as_bytes().to_vec())
-            .unwrap(),
-        ),
-      }
-    })
-    // tell the webview to load the custom protocol
-    .with_url("gnostr://localhost");
+    #[cfg(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "android"
+    ))]
+    let _webview = builder.build(&window)?;
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "android"
+    )))]
+    let _webview = {
+        use tao::platform::unix::WindowExtUnix;
+        use wry::WebViewBuilderExtUnix;
+        let vbox = window.default_vbox().unwrap();
+        builder.build_gtk(vbox)?
+    };
 
-  #[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "android"
-  ))]
-  let _webview = builder.build(&window)?;
-  #[cfg(not(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "android"
-  )))]
-  let _webview = {
-    use tao::platform::unix::WindowExtUnix;
-    use wry::WebViewBuilderExtUnix;
-    let vbox = window.default_vbox().unwrap();
-    builder.build_gtk(vbox)?
-  };
+    let tr = tokio::runtime::Runtime::new().unwrap();
+    tr.spawn(async {
+        warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    });
+    event_loop.run(move |event, _, control_flow| {
 
-  event_loop.run(move |event, _, control_flow| {
-    *control_flow = ControlFlow::Wait;
+        *control_flow = ControlFlow::Wait;
 
-    if let Event::WindowEvent {
-      event: WindowEvent::CloseRequested,
-      ..
-    } = event
-    {
-      *control_flow = ControlFlow::Exit
-    }
-  });
-
-
-
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+        if let Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } = event
+        {
+            *control_flow = ControlFlow::Exit
+        }
+    });
 }
 
 async fn user_connected(ws: WebSocket, users: Users) {
@@ -197,10 +196,10 @@ async fn user_disconnected(my_id: usize, users: &Users) {
 static INDEX_HTML: &str = r#"<!DOCTYPE html>
 <html lang="en">
     <head>
-        <title>Warp Chat</title>
+        <title>gnostr_ws_chat:INDEX_HTML</title>
     </head>
     <body>
-        <h1>Warp chat</h1>
+        <h1>gnostr_ws_chat:INDEX_HTML</h1>
         <div id="chat">
             <p><em>Connecting...</em></p>
         </div>
@@ -243,36 +242,36 @@ static INDEX_HTML: &str = r#"<!DOCTYPE html>
 "#;
 
 fn get_wry_response(
-  request: Request<Vec<u8>>,
+    request: Request<Vec<u8>>,
 ) -> Result<http::Response<Vec<u8>>, Box<dyn std::error::Error>> {
-  let path = request.uri().path();
-  // Read the file content from file path
-  let root = PathBuf::from("examples/custom_protocol");
-  let path = if path == "/" {
-    "index.html"
-  } else {
-    //  removing leading slash
-    &path[1..]
-  };
-  let content = std::fs::read(std::fs::canonicalize(root.join(path))?)?;
+    let path = request.uri().path();
+    // Read the file content from file path
+    let root = PathBuf::from("www");
+    let path = if path == "/" {
+        "index.html"
+    } else {
+        //  removing leading slash
+        &path[1..]
+    };
+    let content = std::fs::read(std::fs::canonicalize(root.join(path))?)?;
 
-  // Return asset contents and mime types based on file extentions
-  // If you don't want to do this manually, there are some crates for you.
-  // Such as `infer` and `mime_guess`.
-  let mimetype = if path.ends_with(".html") || path == "/" {
-    "text/html"
-  } else if path.ends_with(".js") {
-    "text/javascript"
-  } else if path.ends_with(".png") {
-    "image/png"
-  } else if path.ends_with(".wasm") {
-    "application/wasm"
-  } else {
-    unimplemented!();
-  };
+    // Return asset contents and mime types based on file extentions
+    // If you don't want to do this manually, there are some crates for you.
+    // Such as `infer` and `mime_guess`.
+    let mimetype = if path.ends_with(".html") || path == "/" {
+        "text/html"
+    } else if path.ends_with(".js") {
+        "text/javascript"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".wasm") {
+        "application/wasm"
+    } else {
+        unimplemented!();
+    };
 
-  Response::builder()
-    .header(CONTENT_TYPE, mimetype)
-    .body(content)
-    .map_err(Into::into)
+    Response::builder()
+        .header(CONTENT_TYPE, mimetype)
+        .body(content)
+        .map_err(Into::into)
 }
