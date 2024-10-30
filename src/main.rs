@@ -33,8 +33,13 @@ use wry::{
 };
 
 #[tokio::main]
-async fn main() {
+async fn main() -> wry::Result<()> {
     pretty_env_logger::init();
+
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+
 
     // Keep track of all connected users, key is usize, value
     // is a websocket sender.
@@ -56,6 +61,57 @@ async fn main() {
     let index = warp::path::end().map(|| warp::reply::html(INDEX_HTML));
 
     let routes = index.or(chat);
+
+
+  let builder = WebViewBuilder::new()
+    .with_asynchronous_custom_protocol("gnostr".into(), move |_webview_id, request, responder| {
+      match get_wry_response(request) {
+        Ok(http_response) => responder.respond(http_response),
+        Err(e) => responder.respond(
+          http::Response::builder()
+            .header(CONTENT_TYPE, "text/plain")
+            .status(500)
+            .body(e.to_string().as_bytes().to_vec())
+            .unwrap(),
+        ),
+      }
+    })
+    // tell the webview to load the custom protocol
+    .with_url("gnostr://localhost");
+
+  #[cfg(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "android"
+  ))]
+  let _webview = builder.build(&window)?;
+  #[cfg(not(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "android"
+  )))]
+  let _webview = {
+    use tao::platform::unix::WindowExtUnix;
+    use wry::WebViewBuilderExtUnix;
+    let vbox = window.default_vbox().unwrap();
+    builder.build_gtk(vbox)?
+  };
+
+  event_loop.run(move |event, _, control_flow| {
+    *control_flow = ControlFlow::Wait;
+
+    if let Event::WindowEvent {
+      event: WindowEvent::CloseRequested,
+      ..
+    } = event
+    {
+      *control_flow = ControlFlow::Exit
+    }
+  });
+
+
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
