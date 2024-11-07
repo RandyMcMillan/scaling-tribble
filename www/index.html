@@ -11,25 +11,22 @@
   </head>
 
   <body>
+
+        <h1>Warp chat</h1>
     <h1>Welcome to WRY!</h1>
     <p>Page 1</p>
     <textarea></textarea>
     <p id="keypresses"></p>
     <a href="/subpage.html">Link</a>
-    <script type="text/javascript" src="/script.js"></script>
-    <script type="text/javascript">
-      document.body.addEventListener("keydown", (event) => {
-        document.querySelector("#keypresses").innerHTML += " " + event.key;
-      });
-    </script>
-
-        <h1>Warp chat</h1>
         <div id="chat">
             <p><em>Connecting...</em></p>
         </div>
         <input type="text" id="text" />
         <button type="button" id="send">Send</button>
         <script type="text/javascript">
+      document.body.addEventListener("keydown", (event) => {
+        document.querySelector("#keypresses").innerHTML += " " + event.key;
+      });
         const chat = document.getElementById('chat');
         const text = document.getElementById('text');
         const uri = 'ws://' + location.host + '/chat';
@@ -62,5 +59,6 @@
         };
         </script>
 
+    <script type="text/javascript" src="/script.js"></script>
   </body>
 </html>
